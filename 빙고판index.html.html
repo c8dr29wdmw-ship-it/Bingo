@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>닉네임 빙고판</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+<style>
+/* 레이아웃: 왼쪽 주차 선택 + 3x3 빙고판(칸마다 여러 명), 오른쪽 닉네임별 빙고 순위. 좁은 화면에서는 위아래로 쌓임 */
+:root {
+  --bg: #eef1f4;
+  --surface: #ffffff;
+  --fg: #172033;
+  --muted: #5d6a7e;
+  --line: #cfd7e1;
+  --accent: #0d7c6e;
+  --accent-soft: #d4efe9;
+  --hot: #e4572e;
+  --hot-soft: #fde3da;
+  --font: "Noto Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f;
+    --surface: #1a2230;
+    --fg: #e8edf5;
+    --muted: #93a0b5;
+    --line: #2f3b50;
+    --accent: #3fc3b0;
+    --accent-soft: #17413c;
+    --hot: #ff8a63;
+    --hot-soft: #4a2a20;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f;
+  --surface: #1a2230;
+  --fg: #e8edf5;
+  --muted: #93a0b5;
+  --line: #2f3b50;
+  --accent: #3fc3b0;
+  --accent-soft: #17413c;
+  --hot: #ff8a63;
+  --hot-soft: #4a2a20;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+header h1 { margin: 0; font-size: 1.6rem; font-weight: 900; letter-spacing: -0.02em; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--muted); }
+.main { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 20px; align-items: start; }
+@media (max-width: 680px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.panel h2 { margin: 0 0 12px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; color: var(--muted); }
+.weeknav { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.weeklabel { flex: 1 1 140px; text-align: center; font-weight: 700; min-width: 0; }
+.weeklabel small { display: block; font-weight: 400; color: var(--muted); font-size: 0.78rem; }
+.board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.cell {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  min-width: 0;
+  resize: none;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 500 0.88rem/1.35 var(--font);
+  padding: 8px;
+  overflow: auto;
+}
+.cell::placeholder { color: var(--muted); font-weight: 400; opacity: 0.8; }
+.cell:read-only { opacity: 0.75; }
+.cell:focus-visible, button:focus-visible, .row:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.cell.pick { background: var(--hot-soft); border-color: var(--hot); }
+.cell.hit { background: var(--accent-soft); border-color: var(--accent); }
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 14px; }
+.status { font-size: 0.85rem; color: var(--muted); }
+button {
+  font: 500 0.9rem var(--font);
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: default; }
+button.danger { border-color: var(--hot); color: var(--hot); }
+.note { margin: 12px 0 0; font-size: 0.85rem; color: var(--muted); }
+.summary { margin: 0 0 12px; font-weight: 700; }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  background: var(--bg);
+}
+.row.on { border-color: var(--hot); background: var(--hot-soft); }
+.name { font-weight: 700; overflow-wrap: anywhere; }
+.badge {
+  grid-row: span 2;
+  font-weight: 900;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.badge.win { color: var(--accent); }
+.sub { font-size: 0.82rem; color: var(--muted); }
+.empty { color: var(--muted); margin: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .cell, .row { transition: background 0.15s, border-color 0.15s; }
+}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>닉네임 빙고판</h1>
+    <p>한 칸에 여러 명을 적으면 모두 합쳐서 누가 몇 빙고인지 계산하고, 주차별로 저장해요.</p>
+  </header>
+
+  <div class="main">
+    <section class="panel" aria-labelledby="bh">
+      <h2 id="bh">빙고판</h2>
+      <div class="weeknav">
+        <button type="button" id="prev" aria-label="지난주">‹ 지난주</button>
+        <div class="weeklabel" id="weeklabel"></div>
+        <button type="button" id="next" aria-label="다음주">다음주 ›</button>
+      </div>
+      <div class="board" id="board"></div>
+      <div class="tools">
+        <button type="button" id="thisweek">이번 주로</button>
+        <button type="button" id="clear">이 주 비우기</button>
+        <span class="status" id="status" role="status" aria-live="polite"></span>
+      </div>
+      <p class="note">닉네임은 쉼표, 띄어쓰기, 줄바꿈 중 아무거나로 구분해요. 어떤 닉네임이 가로, 세로, 대각선 3칸에 모두 들어 있으면 1빙고예요. 대소문자는 같은 닉네임으로 봐요. 주는 일요일에 시작해서 토요일에 끝나요.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="rh">
+      <h2 id="rh">결과</h2>
+      <p class="summary" id="summary"></p>
+      <ul class="list" id="list"></ul>
+      <p class="note">닉네임을 누르면 그 사람이 들어 있는 칸이 판에 표시돼요.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  var LINES = [
+    { c: [0, 1, 2], n: "가로 1줄" }, { c: [3, 4, 5], n: "가로 2줄" }, { c: [6, 7, 8], n: "가로 3줄" },
+    { c: [0, 3, 6], n: "세로 1줄" }, { c: [1, 4, 7], n: "세로 2줄" }, { c: [2, 5, 8], n: "세로 3줄" },
+    { c: [0, 4, 8], n: "대각선 ↘" }, { c: [2, 4, 6], n: "대각선 ↙" }
+  ];
+  function emptyCells() { return ["", "", "", "", "", "", "", "", ""]; }
+
+  var cells = emptyCells();
+  var selected = "";
+  var inputs = [];
+  var db = null;
+  var canWrite = true;
+  var loaded = false;
+  var ref = null, unsub = null, loadTimer = null;
+  var saveTimer = null, saving = false, dirty = false;
+
+  /* ---------- 주차 ---------- */
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function mondayOf(d) {
+    var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    x.setDate(x.getDate() - x.getDay()); /* 한 주의 시작: 일요일 (변수명 monday는 주 시작일을 뜻함) */
+    return x;
+  }
+  function ymd(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  var thisMonday = mondayOf(new Date());
+  var monday = new Date(thisMonday.getTime());
+
+  function renderWeekLabel() {
+    var end = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+    var el = document.getElementById("weeklabel");
+    el.textContent = "";
+    el.appendChild(document.createTextNode(
+      (monday.getMonth() + 1) + "월 " + monday.getDate() + "일 ~ " + (end.getMonth() + 1) + "월 " + end.getDate() + "일"));
+    var diff = Math.round((monday - thisMonday) / (7 * 86400000));
+    var s = document.createElement("small");
+    s.textContent = diff === 0 ? "이번 주" : diff === -1 ? "지난주" : diff === 1 ? "다음주" : (diff < 0 ? -diff + "주 전" : diff + "주 후");
+    el.appendChild(s);
+    document.getElementById("thisweek").disabled = diff === 0;
+  }
+
+  /* ---------- 닉네임 계산 ---------- */
+  function parse(text) {
+    var seen = {}, out = [];
+    String(text).split(/[,，、\/\n\s]+/).forEach(function (t) {
+      t = t.trim();
+      if (!t) return;
+      var k = t.toLowerCase();
+      if (seen[k]) return;
+      seen[k] = true;
+      out.push({ key: k, name: t });
+    });
+    return out;
+  }
+
+  function compute() {
+    var map = {};
+    cells.map(parse).forEach(function (list, i) {
+      list.forEach(function (p) {
+        if (!map[p.key]) map[p.key] = { key: p.key, name: p.name, cells: [], lines: [] };
+        map[p.key].cells.push(i);
+      });
+    });
+    Object.keys(map).forEach(function (k) {
+      var has = {};
+      map[k].cells.forEach(function (i) { has[i] = true; });
+      LINES.forEach(function (ln) {
+        if (has[ln.c[0]] && has[ln.c[1]] && has[ln.c[2]]) map[k].lines.push(ln);
+      });
+    });
+    return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) {
+      return b.lines.length - a.lines.length || b.cells.length - a.cells.length || a.name.localeCompare(b.name, "ko");
+    });
+  }
+
+  /* ---------- 화면 ---------- */
+  var board = document.getElementById("board");
+  for (var i = 0; i < 9; i++) {
+    var inp = document.createElement("textarea");
+    inp.id = "cell-" + i;
+    inp.className = "cell";
+    inp.placeholder = "닉네임들";
+    inp.autocomplete = "off";
+    inp.spellcheck = false;
+    inp.setAttribute("aria-label", "빙고 " + (i + 1) + "번 칸");
+    (function (idx, el) {
+      el.addEventListener("input", function () {
+        cells[idx] = el.value;
+        update();
+        scheduleSave();
+      });
+    })(i, inp);
+    board.appendChild(inp);
+    inputs.push(inp);
+  }
+
+  function setStatus(t) { document.getElementById("status").textContent = t; }
+
+  function setEditable() {
+    var ro = !(loaded && canWrite);
+    inputs.forEach(function (el) { el.readOnly = ro; });
+    document.getElementById("clear").disabled = ro;
+  }
+
+  function update() {
+    var players = compute();
+    var winners = players.filter(function (p) { return p.lines.length > 0; });
+
+    var pick = {}, hit = {};
+    players.forEach(function (p) {
+      if (p.key !== selected) return;
+      p.cells.forEach(function (i) { pick[i] = true; });
+      p.lines.forEach(function (ln) { ln.c.forEach(function (i) { hit[i] = true; }); });
+    });
+    inputs.forEach(function (el, i) {
+      el.classList.toggle("hit", !!hit[i]);
+      el.classList.toggle("pick", !!pick[i] && !hit[i]);
+    });
+
+    var summary = document.getElementById("summary");
+    var list = document.getElementById("list");
+    list.textContent = "";
+
+    if (!players.length) {
+      summary.textContent = "";
+      var p0 = document.createElement("p");
+      p0.className = "empty";
+      p0.textContent = "이 주에는 아직 입력된 닉네임이 없어요. 빙고판 칸에 닉네임을 적어보세요.";
+      list.appendChild(p0);
+      return;
+    }
+
+    summary.textContent = winners.length
+      ? "빙고 달성 " + winners.length + "명 · 참가 " + players.length + "명"
+      : "아직 빙고가 없어요 · 참가 " + players.length + "명";
+
+    players.forEach(function (p) {
+      var li = document.createElement("li");
+      li.className = "row" + (p.key === selected ? " on" : "");
+      li.tabIndex = 0;
+      li.setAttribute("role", "button");
+      li.setAttribute("aria-pressed", p.key === selected ? "true" : "false");
+
+      var nm = document.createElement("span");
+      nm.className = "name";
+      nm.textContent = p.name;
+
+      var bd = document.createElement("span");
+      bd.className = "badge" + (p.lines.length ? " win" : "");
+      bd.textContent = p.lines.length + "빙고";
+
+      var sub = document.createElement("span");
+      sub.className = "sub";
+      sub.textContent = (p.lines.length ? p.lines.map(function (l) { return l.n; }).join(", ") + " · " : "") + "칸 " + p.cells.length + "개";
+
+      li.appendChild(nm);
+      li.appendChild(bd);
+      li.appendChild(sub);
+
+      function toggle() { selected = selected === p.key ? "" : p.key; update(); }
+      li.addEventListener("click", toggle);
+      li.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+      });
+      list.appendChild(li);
+    });
+  }
+
+  function applyCells(arr) {
+    cells = arr.slice();
+    inputs.forEach(function (el, i) {
+      if (el === document.activeElement) { cells[i] = el.value; return; }
+      if (el.value !== cells[i]) el.value = cells[i];
+    });
+    update();
+  }
+
+  /* ---------- 저장 ---------- */
+  function localKey() { return "bingo-week-" + ymd(monday); }
+
+  function scheduleSave() {
+    if (!canWrite) return;
+    clearTimeout(saveTimer);
+    setStatus("저장 중…");
+    saveTimer = setTimeout(flush, 600);
+  }
+
+  async function flush() {
+    saveTimer = null;
+    if (!db) {
+      try { localStorage.setItem(localKey(), JSON.stringify(cells)); setStatus("이 기기에 저장됨"); }
+      catch (e) { setStatus("저장하지 못했어요"); }
+      return;
+    }
+    if (saving) { dirty = true; return; }
+    saving = true;
+    dirty = false;
+    var snapshot = cells.slice();
+    try {
+      await ref.set({ cells: snapshot });
+      setStatus("저장됨");
+    } catch (e) {
+      setStatus("저장하지 못했어요. 권한을 확인해 주세요");
+    }
+    saving = false;
+    if (dirty) flush();
+  }
+
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  async function settle() {
+    if (saveTimer) { clearTimeout(saveTimer); await flush(); }
+    while (saving) await sleep(50);
+  }
+
+  function openWeek() {
+    renderWeekLabel();
+    selected = "";
+    if (unsub) { unsub(); unsub = null; }
+    clearTimeout(loadTimer);
+    cells = emptyCells();
+    inputs.forEach(function (el) { el.value = ""; });
+
+    if (!db) {
+      loaded = true;
+      try {
+        var saved = JSON.parse(localStorage.getItem(localKey()));
+        if (Array.isArray(saved) && saved.length === 9) cells = saved.map(String);
+      } catch (e) {}
+      inputs.forEach(function (el, i) { el.value = cells[i]; });
+      setStatus("이 기기에만 저장돼요");
+      setEditable();
+      update();
+      return;
+    }
+
+    loaded = false;
+    setEditable();
+    setStatus("불러오는 중…");
+    update();
+    ref = db.doc("weeks/" + ymd(monday));
+    var mine = ref;
+    unsub = ref.onSnapshot(function (snap) {
+      if (mine !== ref) return;
+      if (!snap.metadata.fromCache) {
+        clearTimeout(loadTimer);
+        if (!loaded) { loaded = true; setStatus(canWrite ? "저장됨" : "보기 전용"); setEditable(); }
+      }
+      if (dirty || saving || saveTimer) return;
+      var d = snap.exists ? snap.data() : null;
+      var arr = d && Array.isArray(d.cells) && d.cells.length === 9 ? d.cells.map(String) : emptyCells();
+      applyCells(arr);
+    }, function () {
+      setStatus("저장소와 연결이 끊겼어요");
+    });
+    loadTimer = setTimeout(function () {
+      if (!loaded) { loaded = true; setEditable(); setStatus("저장소 응답이 늦어요. 입력은 계속 시도해요"); }
+    }, 10000);
+  }
+
+  async function goTo(newMonday) {
+    await settle();
+    monday = newMonday;
+    openWeek();
+  }
+
+  function shift(weeks) { return new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 7 * weeks); }
+
+  document.getElementById("prev").addEventListener("click", function () { goTo(shift(-1)); });
+  document.getElementById("next").addEventListener("click", function () { goTo(shift(1)); });
+  document.getElementById("thisweek").addEventListener("click", function () { goTo(new Date(thisMonday.getTime())); });
+
+  var clearBtn = document.getElementById("clear");
+  var clearTimer = null;
+  clearBtn.addEventListener("click", function () {
+    if (!clearBtn.classList.contains("danger")) {
+      clearBtn.classList.add("danger");
+      clearBtn.textContent = "정말 비울까요?";
+      clearTimer = setTimeout(resetClear, 3000);
+      return;
+    }
+    resetClear();
+    cells = emptyCells();
+    inputs.forEach(function (el) { el.value = ""; });
+    selected = "";
+    update();
+    scheduleSave();
+  });
+  function resetClear() {
+    clearTimeout(clearTimer);
+    clearBtn.classList.remove("danger");
+    clearBtn.textContent = "이 주 비우기";
+  }
+
+  /* ---------- 시작 ---------- */
+  renderWeekLabel();
+  loaded = false;
+  setEditable();
+  setStatus("불러오는 중…");
+  update();
+
+  (async function init() {
+    try {
+      if (window.claude && window.claude.use) {
+        db = await window.claude.use("db");
+        var user = await window.claude.use("user");
+        if (user && user.can) {
+          var c = await user.can("data.write");
+          if (c === false) canWrite = false;
+        }
+      }
+    } catch (e) { db = null; }
+    openWeek();
+  })();
+})();
+</script>
+
+</body>
+</html>
